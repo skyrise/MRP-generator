@@ -39,28 +39,49 @@ def calculateCheckDigit(text)
 end
 
 def validSex(sex)
-	return (sex == "M" || sex == "F")
+	return (sex == "M" || sex == "F" || sex == "<")
 end
 
-def validateType(type)
-	return (type == "PA" || type == "ID")
+def validateDocType(docType)
+	return (docType == "TD1" || docType == "TD3")
 end
 
-
-# country selection not implemented yet
-puts "Country: CHE"
-coutry = "CHE"
 
 begin
-	print "Document type (PA/ID) [ID]: "
-	@type = gets.chomp.upcase
-	if @type.empty?
-		@type = "ID"
-	elsif !validateType(@type)
-		puts "type invalid"
+	print "What type of document would you like to create? TD3 (passport) or TD1 (identity / passport card)? (TD1|TD3): "
+	@docType = gets.chomp.upcase
+	if !validateDocType(@docType)
+		puts "Please enter TD1 or TD3."
 	end
-end until validateType(@type)
+end until validateDocType(@docType)
 
+ 
+print "Country code (ISO 3166-1 alpha-3) [CHE]:"
+country = gets.chomp.upcase
+if country.empty?
+	country = "CHE"
+end
+country = country.ljust(3, '<')[0...3]
+
+if country == "CHE"
+	if @docType == "TD1" 
+		@type = "ID"
+	else
+		@type = "PA"
+	end
+else
+	print "Document type [<]: "
+	_type = gets.chomp.upcase
+	if _type.empty?
+		_type = "<"
+	end
+
+	if @docType == "TD1" 
+		@type = "I"+_type[0]
+	else
+		@type = "P"+_type[0]
+	end
+end
 
 print "Surname []: "
 surname= gets.chomp.upcase
@@ -68,50 +89,81 @@ surname= gets.chomp.upcase
 print "Given name(s) []: "
 givenName = gets.chomp.upcase
 
-if (surname.length + givenName.length + 2 >30)
+if (@docType == "TD1" && surname.length + givenName.length + 2 >30)
 	puts "Surname and Given name must be not more than 28 characters. Exiting."
 	exit
+elsif (@docType == "TD3" && surname.length + givenName.length + 2 >39)
+	puts "Surname and Given name must be not more than 37 characters. Exiting."
+	exit
 end
+	
 
 begin
-	print "Sex (M/F) [M]: "
+	print "Sex (M/F/<) [<]: "
 	sex = gets.chomp.upcase
 	if sex.empty?
-		sex = "M"
+		sex = "<"
 	elsif !validSex(sex)
 		puts "sex invalid"
 	end
 end until validSex(sex)
 
-print "Date of birth (YYMMDD) [700720]: "
-birth = gets.chomp
-if birth.empty? 
-	birth="700720"
-end
+begin
+	print "Date of birth (YYMMDD) [700720]: "
+	birth = gets.chomp[0...6]
+	if birth.empty? 
+		birth="700720"
+	end
+end until (birth.length == 6)
 
-print "Date of expiry (YYMMDD) [251231]: "
-expiry = gets.chomp
-if expiry.empty?
-	expiry = "251231"
-end
 
-print "Document no [empty for random]: "
-document = gets.chomp.upcase
+begin
+	print "Date of expiry (YYMMDD) [251231]: "
+	expiry = gets.chomp[0...6]
+	if expiry.empty?
+		expiry = "251231"
+	end
+end until (birth.length == 6)
+
+print "Document no. [empty for random]: "
+document = gets.chomp[0...9].upcase
+if document.empty?
+	if country == "CHE"
+		if @docType == "TD1" 
+			document="E"+rand(1000000...9999999).to_s
+		elsif @docType == "TD3" 
+			document="F"+rand(1000000...9999999).to_s
+		end
+	else
+		document = rand(100000000...999999999).to_s
+	end
+end
+document = document.ljust(9, '<')
 
 puts
 
-if @type == "ID"
+if @docType == "TD1"
 	line1 = Array.new(30,'<')
 	line2 = Array.new(30,'<')
 	line3 = Array.new(30,'<')
 
-	if document.empty?
-		document="E"+rand(1000000...9999999).to_s
+	print "Optional (line 1): "
+	optional1=gets.chomp[0...14].upcase
+	if !optional1.empty?
+		optional1 = optional1.ljust(15, '<').gsub(' ', '<')
+		fillToArray(optional1, line1, 15)
 	end
 
-	fillToArray(@type+coutry+document, line1)
+	print "Optional (line 2): "
+	optional2=gets.chomp[0...10].upcase
+	if !optional2.empty?
+		optional2 = optional2.ljust(11, '<').gsub(' ', '<')
+		fillToArray(optional2, line2, 18)
+	end
+	
+	fillToArray(@type+country+document, line1)
 	line1[14] = calculateCheckDigit(document)
-	fillToArray(birth+calculateCheckDigit(birth)+sex+expiry+calculateCheckDigit(expiry)+coutry, line2)
+	fillToArray(birth+calculateCheckDigit(birth)+sex+expiry+calculateCheckDigit(expiry)+country, line2)
 	line2[29] = calculateCheckDigit((line1[5, 25]+line2[0, 7]+line2[8, 7]+line2[18, 11]).join(""))
 	fillToArray(surname+"<<"+givenName.gsub(' ', '<'), line3)
 
@@ -119,16 +171,23 @@ if @type == "ID"
 	puts line2.join("")
 	puts line3.join("")
 
-elsif @type == "PA"
+elsif @docType == "TD3"
 	line1 = Array.new(44,'<')
 	line2 = Array.new(44,'<')
 
-	if document.empty?
-		document="F"+rand(1000000...9999999).to_s
+	print "Optional: "
+	optional1=gets.chomp[0...13].upcase
+	if !optional1.empty?
+		optional1 = optional1.ljust(14, '<').gsub(' ', '<')
+		fillToArray(optional1, line2, 28)
+		if (optional1 != "<<<<<<<<<<<<<<")
+			line2[42] = calculateCheckDigit(optional1)
+		end
 	end
 
-	fillToArray(@type+coutry+surname+"<<"+givenName.gsub(' ', '<'), line1)
-	fillToArray(document+"<"+calculateCheckDigit(document)+coutry+birth+calculateCheckDigit(birth)+
+
+	fillToArray(@type+country+surname+"<<"+givenName.gsub(' ', '<'), line1)
+	fillToArray(document+calculateCheckDigit(document)+country+birth+calculateCheckDigit(birth)+
 		sex+expiry+calculateCheckDigit(expiry), line2)
 	line2[43] = calculateCheckDigit((line2[0, 10]+line2[13, 7]+line2[21, 22]).join(""))
 
